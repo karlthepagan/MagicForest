@@ -35,20 +35,32 @@ public final class MagicForest {
             return new Forest(goats, wolves, lions);
         }
 
+        public boolean isWolfEatingGoat() {
+            return this.goats > 0 && this.wolves > 0;
+        }
+
         public Optional<Forest> wolfDevoursGoat() {
-            if (this.goats > 0 && this.wolves > 0)
+            if (isWolfEatingGoat())
                 return Optional.of(makeForest(this.goats - 1, this.wolves - 1, this.lions + 1));
             return Optional.empty();
         }
 
+        public boolean isLionEatingGoat() {
+            return this.goats > 0 && this.lions > 0;
+        }
+
         public Optional<Forest> lionDevoursGoat() {
-            if (this.goats > 0 && this.lions > 0)
+            if (isLionEatingGoat())
                 return Optional.of(makeForest(this.goats - 1, this.wolves + 1, this.lions - 1));
             return Optional.empty();
         }
 
+        public boolean isLionEatingWolf() {
+            return this.lions > 0 && this.wolves > 0;
+        }
+
         public Optional<Forest> lionDevoursWolf() {
-            if (this.lions > 0 && this.wolves > 0)
+            if (isLionEatingWolf())
                 return Optional.of(makeForest(this.goats + 1, this.wolves - 1, this.lions - 1));
             return Optional.empty();
         }

@@ -21,11 +21,12 @@ class MagicForestTest extends spock.lang.Specification {
         stableForests[0] != 0
         stableForests[0][winner] == count
         elapsed < time // TODO caliper
+        println("${goats},${wolves},${lions} -> ${count} ${winner} win in ${elapsed}s")
 
         where:
         goats   | wolves    | lions     || winner   | count | time
         17      | 55        | 6         || 'lions'  | 23    | 0.11
-        117     | 155       | 106       || 'lions'  | 223   | 0.3
+        117     | 155       | 106       || 'lions'  | 223   | 0.32
         217     | 255       | 206       || 'lions'  | 423   | 1.1
         83      | 454       | 690       || 'goats'  | 537   | 6.8
     }

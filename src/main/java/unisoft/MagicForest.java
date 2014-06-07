@@ -25,7 +25,7 @@ public final class MagicForest {
         private final int wolves;
         private final int lions;
 
-        private Forest(int goats, int wolves, int lions) {
+        public Forest(int goats, int wolves, int lions) {
             this.goats = goats;
             this.wolves = wolves;
             this.lions = lions;

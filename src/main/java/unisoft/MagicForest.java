@@ -66,11 +66,11 @@ public final class MagicForest {
         }
 
         public Stream<Forest> meal() {
-            List<Forest> nextForests = new ArrayList<>(3);
-            this.wolfDevoursGoat().ifPresent(forest -> nextForests.add(forest));
-            this.lionDevoursGoat().ifPresent(forest -> nextForests.add(forest));
-            this.lionDevoursWolf().ifPresent(forest -> nextForests.add(forest));
-            return nextForests.stream();
+            Stream.Builder<Forest> nextForests = Stream.builder();
+            this.wolfDevoursGoat().ifPresent(nextForests);
+            this.lionDevoursGoat().ifPresent(nextForests);
+            this.lionDevoursWolf().ifPresent(nextForests);
+            return nextForests.build();
         }
 
         public boolean isStable() {

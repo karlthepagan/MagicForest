@@ -18,74 +18,79 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class MagicForest {
+    private static final int[] WOLF_DEVOURS_GOAT = new int[]{-1,-1,+1};
+    private static final int[] LION_DEVOURS_GOAT = new int[]{-1,+1,-1};
+    private static final int[] LION_DEVOURS_WOLF = new int[]{+1,-1,-1};
+
+    private static final int[][] MEALS = new int[][]{WOLF_DEVOURS_GOAT,LION_DEVOURS_GOAT,LION_DEVOURS_WOLF};
 
     static final class Forest implements Comparable<Forest> {
-        private final int goats;
-        private final int wolves;
-        private final int lions;
+        private final int[] animals;
 
         public Forest(int goats, int wolves, int lions) {
-            this.goats = goats;
-            this.wolves = wolves;
-            this.lions = lions;
+            this.animals = new int[3];
+            this.animals[0] = goats;
+            this.animals[1] = wolves;
+            this.animals[2] = lions;
         }
 
-        static public Forest makeForest(int goats, int wolves, int lions) {
-            return new Forest(goats, wolves, lions);
+        public Forest(int[] animals) {
+            this.animals = animals;
         }
 
-        public boolean isWolfEatingGoat() {
-            return this.goats > 0 && this.wolves > 0;
+        public int getGoats() {
+            return animals[0];
+        }
+
+        public int getWolves() {
+            return animals[1];
+        }
+
+        public int getLions() {
+            return animals[2];
+        }
+
+        public Optional<Forest> eat(int[] meal) {
+            int[] next = new int[meal.length];
+            for(int i = meal.length-1; i>=0; i--) {
+                int n = animals[i] + meal[i];
+                if(n < 0) return Optional.empty();
+                next[i] = n;
+            }
+            return Optional.of(new Forest(next));
         }
 
         public Optional<Forest> wolfDevoursGoat() {
-            if (isWolfEatingGoat())
-                return Optional.of(makeForest(this.goats - 1, this.wolves - 1, this.lions + 1));
-            return Optional.empty();
-        }
-
-        public boolean isLionEatingGoat() {
-            return this.goats > 0 && this.lions > 0;
+            return eat(WOLF_DEVOURS_GOAT);
         }
 
         public Optional<Forest> lionDevoursGoat() {
-            if (isLionEatingGoat())
-                return Optional.of(makeForest(this.goats - 1, this.wolves + 1, this.lions - 1));
-            return Optional.empty();
-        }
-
-        public boolean isLionEatingWolf() {
-            return this.lions > 0 && this.wolves > 0;
+            return eat(LION_DEVOURS_GOAT);
         }
 
         public Optional<Forest> lionDevoursWolf() {
-            if (isLionEatingWolf())
-                return Optional.of(makeForest(this.goats + 1, this.wolves - 1, this.lions - 1));
-            return Optional.empty();
+            return eat(LION_DEVOURS_WOLF);
         }
 
         public Collection<Forest> meal() {
             ArrayList<Forest> result = new ArrayList<>(3);
             Consumer<Forest> nextForests = result::add;
-            this.wolfDevoursGoat().ifPresent(nextForests);
-            this.lionDevoursGoat().ifPresent(nextForests);
-            this.lionDevoursWolf().ifPresent(nextForests);
+            for(int[] meal : MEALS) {
+                eat(meal).ifPresent(nextForests);
+            }
             return result;
         }
 
         public boolean isStable() {
-            if (this.goats == 0) return (this.wolves == 0) || (this.lions == 0);
-            return (this.wolves == 0) && (this.lions == 0);
+            for(int[] meal : MEALS) {
+                if(eat(meal).isPresent()) return false;
+            }
+            return true;
         }
 
         @Override
         public int hashCode() {
-            final int magic = 0x9e3779b9;
-            int seed = 0;
-            seed ^= this.goats + magic + (seed << 6) + (seed >> 2);
-            seed ^= this.lions + magic + (seed << 6) + (seed >> 2);
-            seed ^= this.wolves + magic + (seed << 6) + (seed >> 2);
-            return seed;
+            return Arrays.hashCode(animals);
         }
 
         @Override
@@ -96,35 +101,32 @@ public final class MagicForest {
                 return false;
             if (this.getClass() != obj.getClass())
                 return false;
-            Forest other = (Forest) obj;
-            if (this.goats != other.goats)
-                return false;
-            if (this.lions != other.lions)
-                return false;
-            if (this.wolves != other.wolves)
-                return false;
-            return true;
+            return Arrays.equals(animals,((Forest)obj).animals);
         }
 
         @Override
         public String toString() {
-            return "Forest [goats=" + this.goats + ", wolves=" + this.wolves +
-                    ", lions=" + this.lions + "]";
+            return "Forest " + Arrays.toString(animals);
         }
 
         @Override
         public int compareTo(Forest o) {
-            int i = this.goats - o.goats;
-            if(i != 0) return i;
-            i = this.wolves - o.wolves;
-            if(i != 0) return i;
-            i = this.lions - o.lions;
-            return i;
+            for(int i = animals.length - 1; i>=0; i--) {
+                int n = animals[i] - o.animals[i];
+                if(n != 0) return n;
+            }
+            return 0;
         }
     }
 
     static Collection<Forest> meal(Collection<Forest> forests) {
         return forests.stream().map(Forest::meal)
+                .reduce(new HashSet<>(forests.size()*2),
+                        (a,i)->{a.addAll(i); return a;});
+    }
+
+    static Collection<Forest> parallelMeal(Collection<Forest> forests) {
+        return forests.parallelStream().map(Forest::meal)
                 .reduce(new ConcurrentSkipListSet<>(),
                         (a,i)->{a.addAll(i); return a;});
     }
@@ -152,7 +154,7 @@ public final class MagicForest {
             System.exit(-1);
         }
         try {
-            Forest initialForest = Forest.makeForest(Integer.parseInt(args[0]),
+            Forest initialForest = new Forest(Integer.parseInt(args[0]),
                     Integer.parseInt(args[1]), Integer.parseInt(args[2]));
             Collection<Forest> stableForests = findStableForests(initialForest);
             if (stableForests.isEmpty()) {

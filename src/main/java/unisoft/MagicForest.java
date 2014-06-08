@@ -11,16 +11,15 @@ package unisoft;
 // run with Oracle JVM 8:
 // java MagicForest 117 155 106
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class MagicForest {
 
-    static final class Forest {
+    static final class Forest implements Comparable<Forest> {
         private final int goats;
         private final int wolves;
         private final int lions;
@@ -65,12 +64,13 @@ public final class MagicForest {
             return Optional.empty();
         }
 
-        public Stream<Forest> meal() {
-            Stream.Builder<Forest> nextForests = Stream.builder();
+        public Collection<Forest> meal() {
+            ArrayList<Forest> result = new ArrayList<>(3);
+            Consumer<Forest> nextForests = result::add;
             this.wolfDevoursGoat().ifPresent(nextForests);
             this.lionDevoursGoat().ifPresent(nextForests);
             this.lionDevoursWolf().ifPresent(nextForests);
-            return nextForests.build();
+            return result;
         }
 
         public boolean isStable() {
@@ -112,23 +112,34 @@ public final class MagicForest {
                     ", lions=" + this.lions + "]";
         }
 
+        @Override
+        public int compareTo(Forest o) {
+            int i = this.goats - o.goats;
+            if(i != 0) return i;
+            i = this.wolves - o.wolves;
+            if(i != 0) return i;
+            i = this.lions - o.lions;
+            return i;
+        }
     }
 
-    static List<Forest> meal(List<Forest> forests) {
-        return forests.stream().flatMap(Forest::meal).distinct().collect(Collectors.toList());
+    static Collection<Forest> meal(Collection<Forest> forests) {
+        return forests.stream().map(Forest::meal)
+                .reduce(new ConcurrentSkipListSet<>(),
+                        (a,i)->{a.addAll(i); return a;});
     }
 
-    static boolean devouringPossible(List<Forest> forests) {
+    static boolean devouringPossible(Collection<Forest> forests) {
         return !forests.isEmpty() && !forests.stream().anyMatch(Forest::isStable);
     }
 
-    static List<Forest> stableForests(List<Forest> forests) {
+    static Collection<Forest> stableForests(Collection<Forest> forests) {
         return forests.stream().filter(Forest::isStable).collect(Collectors.toList());
     }
 
-    static public List<Forest> findStableForests(Forest forest) {
-        List<Forest> initialForests = Collections.singletonList(forest);
-        Optional<List<Forest>> solution =
+    static public Collection<Forest> findStableForests(Forest forest) {
+        Collection<Forest> initialForests = Collections.singletonList(forest);
+        Optional<Collection<Forest>> solution =
                 Stream.iterate(initialForests, MagicForest::meal).filter(
                         forests->!devouringPossible(forests)).findFirst();
         return solution.isPresent()? stableForests(solution.get()) : Collections.emptyList();
@@ -143,7 +154,7 @@ public final class MagicForest {
         try {
             Forest initialForest = Forest.makeForest(Integer.parseInt(args[0]),
                     Integer.parseInt(args[1]), Integer.parseInt(args[2]));
-            List<Forest> stableForests = findStableForests(initialForest);
+            Collection<Forest> stableForests = findStableForests(initialForest);
             if (stableForests.isEmpty()) {
                 System.out.println("no stable forests found.");
             }

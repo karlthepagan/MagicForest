@@ -14,25 +14,19 @@ package unisoft;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class MagicForest {
-    private static final int[] WOLF_DEVOURS_GOAT = new int[]{-1,-1,+1};
-    private static final int[] LION_DEVOURS_GOAT = new int[]{-1,+1,-1};
-    private static final int[] LION_DEVOURS_WOLF = new int[]{+1,-1,-1};
+    private int[][] meals;
 
-    private static final int[][] MEALS = new int[][]{WOLF_DEVOURS_GOAT,LION_DEVOURS_GOAT,LION_DEVOURS_WOLF};
+    public MagicForest(int[] ... meals) {
+        this.meals = meals;
+    }
 
-    static final class Forest implements Comparable<Forest> {
+    final class Forest implements Comparable<Forest> {
         private final int[] animals;
-
-        public Forest(int goats, int wolves, int lions) {
-            this.animals = new int[3];
-            this.animals[0] = goats;
-            this.animals[1] = wolves;
-            this.animals[2] = lions;
-        }
 
         public Forest(int[] animals) {
             this.animals = animals;
@@ -50,6 +44,14 @@ public final class MagicForest {
             return animals[2];
         }
 
+        public int sum() {
+            int count = 0;
+            for(int i = animals.length-1; i>=0; i--) {
+                count += animals[i];
+            }
+            return count;
+        }
+
         public Optional<Forest> eat(int[] meal) {
             int[] next = new int[meal.length];
             for(int i = meal.length-1; i>=0; i--) {
@@ -60,29 +62,17 @@ public final class MagicForest {
             return Optional.of(new Forest(next));
         }
 
-        public Optional<Forest> wolfDevoursGoat() {
-            return eat(WOLF_DEVOURS_GOAT);
-        }
-
-        public Optional<Forest> lionDevoursGoat() {
-            return eat(LION_DEVOURS_GOAT);
-        }
-
-        public Optional<Forest> lionDevoursWolf() {
-            return eat(LION_DEVOURS_WOLF);
-        }
-
         public Collection<Forest> meal() {
             ArrayList<Forest> result = new ArrayList<>(3);
             Consumer<Forest> nextForests = result::add;
-            for(int[] meal : MEALS) {
+            for(int[] meal : meals()) {
                 eat(meal).ifPresent(nextForests);
             }
             return result;
         }
 
         public boolean isStable() {
-            for(int[] meal : MEALS) {
+            for(int[] meal : meals()) {
                 if(eat(meal).isPresent()) return false;
             }
             return true;
@@ -119,6 +109,15 @@ public final class MagicForest {
         }
     }
 
+    public Forest makeForest(int[] animals) {
+        assert animals.length == meals().length;
+        return new Forest(animals);
+    }
+
+    public int[][] meals() {
+        return meals;
+    }
+
     static Collection<Forest> meal(Collection<Forest> forests) {
         return forests.stream().map(Forest::meal)
                 .reduce(new HashSet<>(forests.size()*2),
@@ -139,11 +138,12 @@ public final class MagicForest {
         return forests.stream().filter(Forest::isStable).collect(Collectors.toList());
     }
 
-    static public Collection<Forest> findStableForests(Forest forest) {
+    static public Collection<Forest> findStableForests(Forest forest, boolean parallel) {
+        UnaryOperator<Collection<Forest>> iterateFunction = parallel?MagicForest::parallelMeal:MagicForest::meal;
         Collection<Forest> initialForests = Collections.singletonList(forest);
         Optional<Collection<Forest>> solution =
-                Stream.iterate(initialForests, MagicForest::meal).filter(
-                        forests->!devouringPossible(forests)).findFirst();
+                Stream.iterate(initialForests, iterateFunction).filter(
+                        forests->!devouringPossible(forests)).findAny();
         return solution.isPresent()? stableForests(solution.get()) : Collections.emptyList();
     }
 
@@ -153,10 +153,15 @@ public final class MagicForest {
                     " <goats> <wolves> <lions>");
             System.exit(-1);
         }
+        MagicForest universe = new MagicForest(new int[][]
+                {{-1,-1,1},
+                {-1,1,-1},
+                {1,-1,-1}}
+        );
         try {
-            Forest initialForest = new Forest(Integer.parseInt(args[0]),
-                    Integer.parseInt(args[1]), Integer.parseInt(args[2]));
-            Collection<Forest> stableForests = findStableForests(initialForest);
+            Forest initialForest = universe.makeForest(new int[]{Integer.parseInt(args[0]),
+                    Integer.parseInt(args[1]), Integer.parseInt(args[2])});
+            Collection<Forest> stableForests = findStableForests(initialForest,false);
             if (stableForests.isEmpty()) {
                 System.out.println("no stable forests found.");
             }

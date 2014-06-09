@@ -13,16 +13,18 @@ package unisoft;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class MagicForest {
-    private int[][] meals;
+    private List<int[]> meals;
 
     public MagicForest(int[] ... meals) {
-        this.meals = meals;
+        this.meals = Arrays.asList(meals);
     }
 
     final class Forest implements Comparable<Forest> {
@@ -62,10 +64,10 @@ public final class MagicForest {
             return Optional.of(new Forest(next));
         }
 
-        public Collection<Forest> meal() {
-            ArrayList<Forest> result = new ArrayList<>(3);
+        public Collection<Forest> meal(Collection<int[]> meals) {
+            ArrayList<Forest> result = new ArrayList<>(meals.size());
             Consumer<Forest> nextForests = result::add;
-            for(int[] meal : meals()) {
+            for(int[] meal : meals) {
                 eat(meal).ifPresent(nextForests);
             }
             return result;
@@ -110,24 +112,35 @@ public final class MagicForest {
     }
 
     public Forest makeForest(int[] animals) {
-        assert animals.length == meals().length;
+        assert animals.length == meals().size();
         return new Forest(animals);
     }
 
-    public int[][] meals() {
+    public List<int[]> meals() {
         return meals;
     }
 
-    static Collection<Forest> meal(Collection<Forest> forests) {
-        return forests.stream().map(Forest::meal)
-                .reduce(new HashSet<>(forests.size()*2),
-                        (a,i)->{a.addAll(i); return a;});
+    private static final BinaryOperator<? extends Collection> REDUCER = (a, i) -> {a.addAll(i); return a; };
+    private static <T> BinaryOperator<Collection<T>> reducer() {
+        return (BinaryOperator<Collection<T>>)REDUCER;
     }
 
-    static Collection<Forest> parallelMeal(Collection<Forest> forests) {
-        return forests.parallelStream().map(Forest::meal)
-                .reduce(new ConcurrentSkipListSet<>(),
-                        (a,i)->{a.addAll(i); return a;});
+    Collection<Forest> meal(Collection<Forest> forests) {
+        return forests.stream().map(forest -> forest.meal(meals))
+                .reduce(new HashSet<Forest>(forests.size() * 2), reducer());
+    }
+
+    Collection<Forest> parallelMeal(Collection<Forest> forests) {
+        return forests.parallelStream().map(forest -> forest.meal(meals))
+                .reduce(new ConcurrentSkipListSet<Forest>(), reducer());
+    }
+
+    Collection<Forest> pipelinedMeal(Collection<Forest> forests) {
+        Function<int[],Stream<Collection<Forest>>> pipeline = it -> forests.stream().map(
+                forest -> forest.meal(Collections.singletonList(it))
+        );
+        return meals.parallelStream().flatMap(pipeline)
+                .reduce(new ConcurrentSkipListSet<Forest>(), reducer());
     }
 
     static boolean devouringPossible(Collection<Forest> forests) {
@@ -138,8 +151,15 @@ public final class MagicForest {
         return forests.stream().filter(Forest::isStable).collect(Collectors.toList());
     }
 
-    static public Collection<Forest> findStableForests(Forest forest, boolean parallel) {
-        UnaryOperator<Collection<Forest>> iterateFunction = parallel?MagicForest::parallelMeal:MagicForest::meal;
+    public Collection<Forest> findStableForests(Forest forest, boolean parallel, boolean pipelined) {
+
+        UnaryOperator<Collection<Forest>> iterateFunction;
+        if(pipelined) {
+            iterateFunction = this::pipelinedMeal;
+        } else {
+            iterateFunction = parallel?this::parallelMeal:this::meal;
+        }
+
         Collection<Forest> initialForests = Collections.singletonList(forest);
         Optional<Collection<Forest>> solution =
                 Stream.iterate(initialForests, iterateFunction).filter(
@@ -161,7 +181,7 @@ public final class MagicForest {
         try {
             Forest initialForest = universe.makeForest(new int[]{Integer.parseInt(args[0]),
                     Integer.parseInt(args[1]), Integer.parseInt(args[2])});
-            Collection<Forest> stableForests = findStableForests(initialForest,false);
+            Collection<Forest> stableForests = universe.findStableForests(initialForest, false, false);
             if (stableForests.isEmpty()) {
                 System.out.println("no stable forests found.");
             }
